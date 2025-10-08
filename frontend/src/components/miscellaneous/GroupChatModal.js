@@ -58,7 +58,8 @@ const GroupChatModal = ({ children }) => {
           Authorization: `Bearer ${user.token}`,
         },
       };
-      const { data } = await axios.get(`/api/user?search=${search}`, config);
+      // FIXED: use the passed query value, not stale state
+      const { data } = await axios.get(`/api/user?search=${query}`, config);
       console.log(data);
       setLoading(false);
       setSearchResult(data);
@@ -153,6 +154,7 @@ const GroupChatModal = ({ children }) => {
               <Input
                 placeholder="Add Users eg: John, Piyush, Jane"
                 mb={1}
+                value={search}
                 onChange={(e) => handleSearch(e.target.value)}
               />
             </FormControl>

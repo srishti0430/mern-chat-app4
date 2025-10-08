@@ -1,9 +1,8 @@
 import { Avatar } from "@chakra-ui/avatar";
 import { Box, Text } from "@chakra-ui/layout";
-import { ChatState } from "../../Context/ChatProvider";
 
-const UserListItem = ({ handleFunction }) => {
-  const { user } = ChatState();
+// FIXED: UserListItem should use passed user prop, not global context user
+const UserListItem = ({ user, handleFunction }) => {
 
   return (
     <Box
