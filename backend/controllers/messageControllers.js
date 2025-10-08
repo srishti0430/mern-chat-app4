@@ -36,10 +36,10 @@ const sendMessage = asyncHandler(async (req, res) => {
   };
 
   try {
-    var message = await Message.create(newMessage);
-
-    message = await message.populate("sender", "name pic").execPopulate();
-    message = await message.populate("chat").execPopulate();
+    // FIXED: execPopulate deprecated; use await populate chain
+    let message = await Message.create(newMessage);
+    message = await message.populate("sender", "name pic");
+    message = await message.populate("chat");
     message = await User.populate(message, {
       path: "chat.users",
       select: "name pic email",

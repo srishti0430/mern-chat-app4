@@ -1,6 +1,7 @@
 const express = require("express");
 const connectDB = require("./config/db");
 const dotenv = require("dotenv");
+const colors = require("colors"); // FIXED: ensure colors is loaded
 const userRoutes = require("./routes/userRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const messageRoutes = require("./routes/messageRoutes");
@@ -43,7 +44,8 @@ if (process.env.NODE_ENV === "production") {
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT;
+// FIXED: Server running on PORT undefined -> provide default
+const PORT = process.env.PORT || 5000;
 
 const server = app.listen(
   PORT,
@@ -84,8 +86,11 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.off("setup", () => {
+  // FIXED: Socket.io not working - cleanup handler references undefined userData
+  socket.off("setup", (userData) => {
     console.log("USER DISCONNECTED");
-    socket.leave(userData._id);
+    if (userData && userData._id) {
+      socket.leave(userData._id);
+    }
   });
 });
