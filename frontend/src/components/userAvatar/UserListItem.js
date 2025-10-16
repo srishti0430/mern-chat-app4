@@ -1,9 +1,9 @@
 import { Avatar } from "@chakra-ui/avatar";
 import { Box, Text } from "@chakra-ui/layout";
-import { ChatState } from "../../Context/ChatProvider";
 
-const UserListItem = ({ handleFunction }) => {
-  const { user } = ChatState();
+// The component now accepts 'user' as a prop.
+const UserListItem = ({ user, handleFunction }) => {
+  // The problematic line `const { user } = ChatState()` has been removed.
 
   return (
     <Box
@@ -27,14 +27,14 @@ const UserListItem = ({ handleFunction }) => {
         mr={2}
         size="sm"
         cursor="pointer"
-        name={user.name}
+        name={user.name} // This will now correctly use the user from search results
         src={user.pic}
       />
       <Box>
-        <Text>{user.name}</Text>
+        <Text>{user.name}</Text> {/* This will now be correct */}
         <Text fontSize="xs">
           <b>Email : </b>
-          {user.email}
+          {user.email} {/* This will also be correct */}
         </Text>
       </Box>
     </Box>
