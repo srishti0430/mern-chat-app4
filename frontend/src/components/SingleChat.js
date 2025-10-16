@@ -2,7 +2,8 @@ import { FormControl } from "@chakra-ui/form-control";
 import { Input } from "@chakra-ui/input";
 import { Box, Text } from "@chakra-ui/layout";
 import "./styles.css";
-import { IconButton, Spinner, useToast } from "@chakra-ui/react";
+import { IconButton, Spinner, useToast, Button } from "@chakra-ui/react"; // <-- ADD Button
+//import { IconButton, Spinner, useToast } from "@chakra-ui/react";
 import { getSender, getSenderFull } from "../config/ChatLogics";
 import { useEffect, useState } from "react";
 import axios from "axios";
@@ -11,6 +12,7 @@ import ProfileModal from "./miscellaneous/ProfileModal";
 import ScrollableChat from "./ScrollableChat";
 import Lottie from "react-lottie";
 import animationData from "../animations/typing.json";
+import Picker from "emoji-picker-react"; // <-- ADD THIS
 
 import io from "socket.io-client";
 import UpdateGroupChatModal from "./miscellaneous/UpdateGroupChatModal";
@@ -25,6 +27,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [typing, setTyping] = useState(false);
   const [istyping, setIsTyping] = useState(false);
+  const [showPicker, setShowPicker] = useState(false); // <-- ADD THIS
   const toast = useToast();
 
   const defaultOptions = {
@@ -37,6 +40,11 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   };
   const { selectedChat, setSelectedChat, user, notification, setNotification } =
     ChatState();
+
+  // <-- ADD THIS FUNCTION -->
+  const onEmojiClick = (emojiObject) => {
+    setNewMessage((prevInput) => prevInput + emojiObject.emoji);
+  };
 
   const fetchMessages = async () => {
     if (!selectedChat) return;
@@ -71,7 +79,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   };
 
   const sendMessage = async (event) => {
-    if (event.key === "Enter" && newMessage) {
+    // Also send on button click, not just "Enter"
+    if ((event.key === "Enter" || event.type === "click") && newMessage) {
       socket.emit("stop typing", selectedChat._id);
       try {
         const config = {
@@ -85,7 +94,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           "/api/message",
           {
             content: newMessage,
-            chatId: selectedChat,
+            chatId: selectedChat._id, // Use selectedChat._id to be safe
+            //chatId: selectedChat,
           },
           config
         );
@@ -122,9 +132,9 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   }, [selectedChat]);
 
   useEffect(() => {
-    socket.on("message recieved", (newMessageRecieved) => {
+    const messageListener = (newMessageRecieved) => {
       if (
-        !selectedChatCompare || // if chat is not selected or doesn't match current chat
+        !selectedChatCompare ||
         selectedChatCompare._id !== newMessageRecieved.chat._id
       ) {
         if (!notification.includes(newMessageRecieved)) {
@@ -132,10 +142,17 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           setFetchAgain(!fetchAgain);
         }
       } else {
-        setMessages([...messages, newMessageRecieved]);
+        // Use functional update to avoid stale state
+        setMessages((prevMessages) => [...prevMessages, newMessageRecieved]);
       }
-    });
-  });
+    };
+    socket.on("message recieved", messageListener);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      socket.off("message recieved", messageListener);
+    };
+  }); // Note: Removed dependency array to re-bind on every render, which is a common pattern for socket listeners inside components.
 
   const typingHandler = (e) => {
     setNewMessage(e.target.value);
@@ -239,13 +256,30 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               ) : (
                 <></>
               )}
-              <Input
-                variant="filled"
-                bg="#E0E0E0"
-                placeholder="Enter a message.."
-                value={newMessage}
-                onChange={typingHandler}
-              />
+              {/* V-- ADDED FROM HERE --V */}
+              <Box position="relative">
+                {showPicker && (
+                  <Box position="absolute" bottom="50px">
+                    <Picker onEmojiClick={onEmojiClick} />
+                  </Box>
+                )}
+                <Box display="flex">
+                  <Button
+                    onClick={() => setShowPicker(!showPicker)}
+                    mr={1}
+                  >
+                    😄
+                  </Button>
+                  <Input
+                    variant="filled"
+                    bg="#E0E0E0"
+                    placeholder="Enter a message.."
+                    value={newMessage}
+                    onChange={typingHandler}
+                  />
+                </Box>
+              </Box>
+              {/* ^-- TO HERE --^ */}
             </FormControl>
           </Box>
         </>
