@@ -18,6 +18,11 @@ import { ChatState } from "../Context/ChatProvider";
 const ENDPOINT = "http://localhost:5000"; // "https://talk-a-tive.herokuapp.com"; -> After deployment
 var socket, selectedChatCompare;
 
+// v-- MOVE THESE VARIABLES OUTSIDE THE COMPONENT --v
+var typingTimer;
+const typingTimeoutLength = 3000;
+// ^----------------------------------------------^
+
 const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -137,6 +142,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     });
   });
 
+  // v-- REPLACE YOUR typingHandler WITH THIS --v
   const typingHandler = (e) => {
     setNewMessage(e.target.value);
 
@@ -146,17 +152,14 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       setTyping(true);
       socket.emit("typing", selectedChat._id);
     }
-    let lastTypingTime = new Date().getTime();
-    var timerLength = 3000;
-    setTimeout(() => {
-      var timeNow = new Date().getTime();
-      var timeDiff = timeNow - lastTypingTime;
-      if (timeDiff >= timerLength && typing) {
-        socket.emit("stop typing", selectedChat._id);
-        setTyping(false);
-      }
-    }, timerLength);
+
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+      socket.emit("stop typing", selectedChat._id);
+      setTyping(false);
+    }, typingTimeoutLength);
   };
+  // ^----------------------------------------^
 
   return (
     <>
