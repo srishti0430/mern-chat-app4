@@ -2,7 +2,7 @@ import { FormControl } from "@chakra-ui/form-control";
 import { Input } from "@chakra-ui/input";
 import { Box, Text } from "@chakra-ui/layout";
 import "./styles.css";
-import { IconButton, Spinner, useToast } from "@chakra-ui/react";
+import { IconButton, Spinner, useToast, Button } from "@chakra-ui/react";
 import { getSender, getSenderFull } from "../config/ChatLogics";
 import { useEffect, useState } from "react";
 import axios from "axios";
@@ -11,12 +11,18 @@ import ProfileModal from "./miscellaneous/ProfileModal";
 import ScrollableChat from "./ScrollableChat";
 import Lottie from "react-lottie";
 import animationData from "../animations/typing.json";
+import Picker from "emoji-picker-react";
 
 import io from "socket.io-client";
 import UpdateGroupChatModal from "./miscellaneous/UpdateGroupChatModal";
 import { ChatState } from "../Context/ChatProvider";
-const ENDPOINT = "http://localhost:5000"; // "https://talk-a-tive.herokuapp.com"; -> After deployment
+const ENDPOINT = "http://localhost:5000"; 
 var socket, selectedChatCompare;
+
+// v-- MOVE THESE VARIABLES OUTSIDE THE COMPONENT --v
+var typingTimer;
+const typingTimeoutLength = 3000;
+// ^----------------------------------------------^
 
 const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [messages, setMessages] = useState([]);
@@ -25,6 +31,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [typing, setTyping] = useState(false);
   const [istyping, setIsTyping] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const toast = useToast();
 
   const defaultOptions = {
@@ -37,6 +44,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   };
   const { selectedChat, setSelectedChat, user, notification, setNotification } =
     ChatState();
+
+  const onEmojiClick = (emojiObject) => {
+    setNewMessage((prevInput) => prevInput + emojiObject.emoji);
+  };
 
   const fetchMessages = async () => {
     if (!selectedChat) return;
@@ -71,7 +82,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   };
 
   const sendMessage = async (event) => {
-    if (event.key === "Enter" && newMessage) {
+    if ((event.key === "Enter" || event.type === "click") && newMessage) {
       socket.emit("stop typing", selectedChat._id);
       try {
         const config = {
@@ -85,7 +96,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           "/api/message",
           {
             content: newMessage,
-            chatId: selectedChat,
+            chatId: selectedChat._id,
           },
           config
         );
@@ -111,20 +122,23 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     socket.on("typing", () => setIsTyping(true));
     socket.on("stop typing", () => setIsTyping(false));
 
+    return () => {
+      socket.disconnect();
+    };
     // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
     fetchMessages();
-
     selectedChatCompare = selectedChat;
     // eslint-disable-next-line
   }, [selectedChat]);
 
+  //fix(socket)
   useEffect(() => {
-    socket.on("message recieved", (newMessageRecieved) => {
+    const messageListener = (newMessageRecieved) => {
       if (
-        !selectedChatCompare || // if chat is not selected or doesn't match current chat
+        !selectedChatCompare ||
         selectedChatCompare._id !== newMessageRecieved.chat._id
       ) {
         if (!notification.includes(newMessageRecieved)) {
@@ -132,11 +146,17 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           setFetchAgain(!fetchAgain);
         }
       } else {
-        setMessages([...messages, newMessageRecieved]);
+        setMessages((prevMessages) => [...prevMessages, newMessageRecieved]);
       }
-    });
-  });
+    };
+    socket.on("message recieved", messageListener);
 
+    return () => {
+      socket.off("message recieved", messageListener);
+    };
+  }); 
+
+  // v-- REPLACE YOUR typingHandler WITH THIS --v
   const typingHandler = (e) => {
     setNewMessage(e.target.value);
 
@@ -146,17 +166,14 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       setTyping(true);
       socket.emit("typing", selectedChat._id);
     }
-    let lastTypingTime = new Date().getTime();
-    var timerLength = 3000;
-    setTimeout(() => {
-      var timeNow = new Date().getTime();
-      var timeDiff = timeNow - lastTypingTime;
-      if (timeDiff >= timerLength && typing) {
-        socket.emit("stop typing", selectedChat._id);
-        setTyping(false);
-      }
-    }, timerLength);
+
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+      socket.emit("stop typing", selectedChat._id);
+      setTyping(false);
+    }, typingTimeoutLength);
   };
+  // ^----------------------------------------^
 
   return (
     <>
@@ -168,12 +185,12 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             px={2}
             w="100%"
             fontFamily="Work sans"
-            d="flex"
+            display="flex"
             justifyContent={{ base: "space-between" }}
             alignItems="center"
           >
             <IconButton
-              d={{ base: "flex", md: "none" }}
+              display={{ base: "flex", md: "none" }}
               icon={<ArrowBackIcon />}
               onClick={() => setSelectedChat("")}
             />
@@ -197,7 +214,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               ))}
           </Text>
           <Box
-            d="flex"
+            display="flex"
             flexDir="column"
             justifyContent="flex-end"
             p={3}
@@ -231,7 +248,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 <div>
                   <Lottie
                     options={defaultOptions}
-                    // height={50}
                     width={70}
                     style={{ marginBottom: 15, marginLeft: 0 }}
                   />
@@ -239,19 +255,33 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               ) : (
                 <></>
               )}
-              <Input
-                variant="filled"
-                bg="#E0E0E0"
-                placeholder="Enter a message.."
-                value={newMessage}
-                onChange={typingHandler}
-              />
+              <Box position="relative">
+                {showPicker && (
+                  <Box position="absolute" bottom="50px">
+                    <Picker onEmojiClick={onEmojiClick} />
+                  </Box>
+                )}
+                <Box display="flex">
+                  <Button
+                    onClick={() => setShowPicker(!showPicker)}
+                    mr={1}
+                  >
+                    😄
+                  </Button>
+                  <Input
+                    variant="filled"
+                    bg="#E0E0E0"
+                    placeholder="Enter a message.."
+                    value={newMessage}
+                    onChange={typingHandler}
+                  />
+                </Box>
+              </Box>
             </FormControl>
           </Box>
         </>
       ) : (
-        // to get socket.io on same page
-        <Box d="flex" alignItems="center" justifyContent="center" h="100%">
+        <Box display="flex" alignItems="center" justifyContent="center" h="100%">
           <Text fontSize="3xl" pb={3} fontFamily="Work sans">
             Click on a user to start chatting
           </Text>
