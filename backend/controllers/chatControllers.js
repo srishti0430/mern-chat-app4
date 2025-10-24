@@ -143,25 +143,45 @@ const renameGroup = asyncHandler(async (req, res) => {
 const removeFromGroup = asyncHandler(async (req, res) => {
   const { chatId, userId } = req.body;
 
-  // check if the requester is admin
+  // Find the chat *before* any modifications
+  const chat = await Chat.findById(chatId);
 
-  const removed = await Chat.findByIdAndUpdate(
-    chatId,
-    {
-      $pull: { users: userId },
-    },
-    {
-      new: true,
+  if (!chat) {
+    res.status(404);
+    throw new Error("Chat Not Found");
+  }
+
+  // Check if the user to be removed is the current group admin
+  const isUserAdmin = chat.groupAdmin.toString() === userId;
+
+  // Prepare the update query
+  const updateQuery = {
+    $pull: { users: userId }, // Always remove the user from the group
+  };
+
+  // If the admin is leaving AND there are other users left in the group...
+  if (isUserAdmin && chat.users.length > 1) {
+    // Find the first user in the array who is NOT the leaving admin
+    const newAdmin = chat.users.find((user) => user.toString() !== userId);
+    
+    // If a new admin is found, set them as the new groupAdmin
+    if (newAdmin) {
+      updateQuery.$set = { groupAdmin: newAdmin };
     }
-  )
+  }
+
+  // Execute the update in a single atomic operation
+  const updatedChat = await Chat.findByIdAndUpdate(chatId, updateQuery, {
+    new: true, // Return the modified document
+  })
     .populate("users", "-password")
     .populate("groupAdmin", "-password");
 
-  if (!removed) {
+  if (!updatedChat) {
     res.status(404);
-    throw new Error("Chat Not Found");
+    throw new Error("Chat Not Found or could not be updated");
   } else {
-    res.json(removed);
+    res.json(updatedChat);
   }
 });
 
