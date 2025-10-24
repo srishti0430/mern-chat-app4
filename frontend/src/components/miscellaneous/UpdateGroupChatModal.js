@@ -24,7 +24,7 @@ import UserListItem from "../userAvatar/UserListItem";
 
 const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [groupChatName, setGroupChatName] = useState();
+  const [groupChatName, setGroupChatName] = useState("");
   const [search, setSearch] = useState("");
   const [searchResult, setSearchResult] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -47,7 +47,6 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
         },
       };
       const { data } = await axios.get(`/api/user?search=${search}`, config);
-      console.log(data);
       setLoading(false);
       setSearchResult(data);
     } catch (error) {
@@ -82,8 +81,6 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
         config
       );
 
-      console.log(data._id);
-      // setSelectedChat("");
       setSelectedChat(data);
       setFetchAgain(!fetchAgain);
       setRenameLoading(false);
@@ -157,8 +154,15 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
     setGroupChatName("");
   };
 
-  const handleRemove = async (user1) => {
-    if (selectedChat.groupAdmin._id !== user._id && user1._id !== user._id) {
+  // --- THIS IS THE CORRECTED FUNCTION ---
+  const handleRemove = async (userToRemove) => {
+    // Check if the logged-in user is the group admin
+    const isAdmin = selectedChat.groupAdmin._id === user._id;
+    // Check if the user is trying to leave the group themselves
+    const isLeaving = userToRemove._id === user._id;
+
+    // Block the action ONLY if the user is NOT the admin AND they are trying to remove someone ELSE.
+    if (!isAdmin && !isLeaving) {
       toast({
         title: "Only admins can remove someone!",
         status: "error",
@@ -180,18 +184,25 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
         `/api/chat/groupremove`,
         {
           chatId: selectedChat._id,
-          userId: user1._id,
+          userId: userToRemove._id,
         },
         config
       );
 
-      user1._id === user._id ? setSelectedChat() : setSelectedChat(data);
+      // If the person who left was the logged-in user, close the chat for them.
+      // Otherwise, just update the chat state for the admin who performed the removal.
+      if (isLeaving) {
+        setSelectedChat();
+      } else {
+        setSelectedChat(data);
+      }
+      
       setFetchAgain(!fetchAgain);
-      fetchMessages();
+      fetchMessages(); // To refresh the messages after a user is removed
       setLoading(false);
     } catch (error) {
       toast({
-        title: "Error Occured!",
+        title: "Error Occurred!",
         description: error.response.data.message,
         status: "error",
         duration: 5000,
@@ -200,7 +211,6 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
       });
       setLoading(false);
     }
-    setGroupChatName("");
   };
 
   return (
@@ -259,7 +269,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
             {loading ? (
               <Spinner size="lg" />
             ) : (
-              searchResult?.map((user) => (
+              searchResult?.slice(0, 4).map((user) => (
                 <UserListItem
                   key={user._id}
                   user={user}
