@@ -13,16 +13,11 @@ const app = express();
 
 app.use(express.json()); // to accept json data
 
-// app.get("/", (req, res) => {
-//   res.send("API Running!");
-// });
-
 app.use("/api/user", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/message", messageRoutes);
 
 // --------------------------deployment------------------------------
-
 const __dirname1 = path.resolve();
 
 if (process.env.NODE_ENV === "production") {
@@ -36,7 +31,6 @@ if (process.env.NODE_ENV === "production") {
     res.send("API is running..");
   });
 }
-
 // --------------------------deployment------------------------------
 
 // Error Handling middlewares
@@ -54,14 +48,25 @@ const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
     origin: "http://localhost:3000",
-    // credentials: true,
   },
 });
 
+// NEW: Keep track of all online users' IDs
+let onlineUsers = new Set();
+
 io.on("connection", (socket) => {
   console.log("Connected to socket.io");
+
+  // MODIFIED: Store user ID on the socket for easier disconnect handling
+  // We removed the 'setupUserId' variable which was scoped inside the 'setup' event
   socket.on("setup", (userData) => {
+    // NEW: Store the user's ID on the socket object itself
+    socket.userId = userData._id;
     socket.join(userData._id);
+    // NEW: Add user to our set of online users
+    onlineUsers.add(userData._id);
+    // NEW: Broadcast the updated list of online users to ALL clients
+    io.emit("get online users", Array.from(onlineUsers));
     socket.emit("connected");
   });
 
@@ -69,8 +74,16 @@ io.on("connection", (socket) => {
     socket.join(room);
     console.log("User Joined Room: " + room);
   });
-  socket.on("typing", (room) => socket.in(room).emit("typing"));
-  socket.on("stop typing", (room) => socket.in(room).emit("stop typing"));
+
+  socket.on("typing", (data) => {
+    if (!data || !data.room || !data.user) return;
+    socket.in(data.room).emit("typing", data.user);
+  });
+
+  socket.on("stop typing", (data) => {
+    if (!data || !data.room || !data.user) return;
+    socket.in(data.room).emit("stop typing", data.user);
+  });
 
   socket.on("new message", (newMessageRecieved) => {
     var chat = newMessageRecieved.chat;
@@ -79,13 +92,21 @@ io.on("connection", (socket) => {
 
     chat.users.forEach((user) => {
       if (user._id == newMessageRecieved.sender._id) return;
-
       socket.in(user._id).emit("message recieved", newMessageRecieved);
     });
   });
 
-  socket.off("setup", () => {
+  // MODIFIED: Cleaned up disconnect logic
+  socket.on("disconnect", () => {
     console.log("USER DISCONNECTED");
-    socket.leave(userData._id);
+    // NEW: Check if the user was properly set up
+    if (socket.userId) {
+      // NEW: Remove the user from the online set
+      onlineUsers.delete(socket.userId);
+      // NEW: Leave the user's personal room
+      socket.leave(socket.userId);
+      // NEW: Broadcast the updated list to ALL clients
+      io.emit("get online users", Array.from(onlineUsers));
+    }
   });
 });

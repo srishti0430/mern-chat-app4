@@ -1,9 +1,14 @@
-import { Avatar } from "@chakra-ui/avatar";
+// MODIFIED: Import AvatarBadge to show status
+import { Avatar, AvatarBadge } from "@chakra-ui/avatar";
 import { Box, Text } from "@chakra-ui/layout";
+// NEW: Import ChatState to access the list of online users
 import { ChatState } from "../../Context/ChatProvider";
+const UserListItem = ({ user, handleFunction }) => {
+  // NEW: Get the list of online users from the global context
+  const { onlineUsers } = ChatState();
 
-const UserListItem = ({ handleFunction }) => {
-  const { user } = ChatState();
+  // NEW: Check if this specific user's ID is in the online list
+  const isOnline = onlineUsers.includes(user._id);
 
   return (
     <Box
@@ -29,7 +34,15 @@ const UserListItem = ({ handleFunction }) => {
         cursor="pointer"
         name={user.name}
         src={user.pic}
-      />
+      >
+        {/* NEW: Add the online/offline badge */}
+        <AvatarBadge
+          boxSize="1.25em"
+          // MODIFIED: Show green for online, gray for offline
+          bg={isOnline ? "green.500" : "gray.400"}
+          title={isOnline ? "Online" : "Offline"} // Add a tooltip
+        />
+      </Avatar>
       <Box>
         <Text>{user.name}</Text>
         <Text fontSize="xs">
