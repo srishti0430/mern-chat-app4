@@ -8,6 +8,8 @@ const ChatProvider = ({ children }) => {
   const [user, setUser] = useState();
   const [notification, setNotification] = useState([]);
   const [chats, setChats] = useState();
+  // NEW: Add state to store the list of online user IDs
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   const history = useHistory();
 
@@ -30,6 +32,9 @@ const ChatProvider = ({ children }) => {
         setNotification,
         chats,
         setChats,
+        // NEW: Expose onlineUsers state to the app
+        onlineUsers,
+        setOnlineUsers,
       }}
     >
       {children}
