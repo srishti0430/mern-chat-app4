@@ -33,6 +33,7 @@ const sendMessage = asyncHandler(async (req, res) => {
     sender: req.user._id,
     content: content,
     chat: chatId,
+    readBy: [req.user._id],
   };
 
   try {
@@ -54,4 +55,38 @@ const sendMessage = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { allMessages, sendMessage };
+//@description     Mark messages as read
+//@route           PUT /api/message/read
+//@access          Protected
+const markMessagesAsRead = asyncHandler(async (req, res) => {
+  const { chatId } = req.body;
+
+  if (!chatId) {
+    console.log("Invalid data passed into request");
+    return res.sendStatus(400);
+  }
+
+  try {
+    const updatedMessages = await Message.updateMany(
+      {
+        chat: chatId,
+        sender: { $ne: req.user._id },
+        readBy: { $nin: [req.user._id] },
+      },
+      {
+        $addToSet: { readBy: req.user._id },
+      },
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      modifiedCount: updatedMessages.modifiedCount,
+    });
+  } catch (error) {
+    res.status(400);
+    throw new Error(error.message);
+  }
+});
+
+module.exports = { allMessages, sendMessage, markMessagesAsRead };
