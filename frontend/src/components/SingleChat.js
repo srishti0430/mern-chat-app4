@@ -38,6 +38,35 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const { selectedChat, setSelectedChat, user, notification, setNotification } =
     ChatState();
 
+  const markMessagesAsRead = async () => {
+    if (!selectedChat) return;
+
+    try {
+      const config = {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+      };
+
+      await axios.put(
+        "/api/message/read",
+        { chatId: selectedChat._id },
+        config
+      );
+
+      socket.emit("mark read", {
+        chatId: selectedChat._id,
+        userId: user._id,
+        chat: selectedChat,
+      });
+
+      setFetchAgain((prev) => !prev);
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+    }
+  };
+
   const fetchMessages = async () => {
     if (!selectedChat) return;
 
@@ -58,6 +87,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       setLoading(false);
 
       socket.emit("join chat", selectedChat._id);
+
+      await markMessagesAsRead();
     } catch (error) {
       toast({
         title: "Error Occured!",
@@ -129,12 +160,18 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       ) {
         if (!notification.includes(newMessageRecieved)) {
           setNotification([newMessageRecieved, ...notification]);
-          setFetchAgain(!fetchAgain);
+          setFetchAgain((prev) => !prev);
         }
       } else {
         setMessages([...messages, newMessageRecieved]);
+        markMessagesAsRead();
       }
     });
+
+    socket.on("messages read", (data) => {
+      setFetchAgain((prev) => !prev);
+    });
+    // eslint-disable-next-line
   });
 
   const typingHandler = (e) => {
