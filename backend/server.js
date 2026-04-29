@@ -84,6 +84,21 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("mark read", (data) => {
+    const { chatId, userId, chat } = data;
+
+    if (!chat || !chat.users) return console.log("chat.users not defined");
+
+    chat.users.forEach((user) => {
+      if (user._id === userId) return;
+
+      socket.in(user._id).emit("messages read", {
+        chatId,
+        userId,
+      });
+    });
+  });
+
   socket.off("setup", () => {
     console.log("USER DISCONNECTED");
     socket.leave(userData._id);
