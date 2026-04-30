@@ -31,9 +31,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const messagesRef = useRef([]);
   const notificationRef = useRef([]);
   const userRef = useRef(null);
+  const fetchAgainRef = useRef(fetchAgain);
   const setFetchAgainRef = useRef(setFetchAgain);
-  const setMessagesRef = useRef(setMessages);
-  const setNotificationRef = useRef(null);
 
   const defaultOptions = {
     loop: true,
@@ -63,16 +62,12 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   }, [user]);
 
   useEffect(() => {
+    fetchAgainRef.current = fetchAgain;
+  }, [fetchAgain]);
+
+  useEffect(() => {
     setFetchAgainRef.current = setFetchAgain;
   }, [setFetchAgain]);
-
-  useEffect(() => {
-    setMessagesRef.current = setMessages;
-  }, [setMessages]);
-
-  useEffect(() => {
-    setNotificationRef.current = setNotification;
-  }, [setNotification]);
 
   const markMessagesAsRead = useCallback(async () => {
     const currentSelectedChat = selectedChatRef.current;
@@ -110,27 +105,30 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   }, []);
 
-  const fetchMessages = async () => {
-    if (!selectedChat) return;
+  const fetchMessages = useCallback(async () => {
+    const currentSelectedChat = selectedChatRef.current;
+    const currentUser = userRef.current;
+    
+    if (!currentSelectedChat || !currentUser) return;
 
     try {
       const config = {
         headers: {
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${currentUser.token}`,
         },
       };
 
       setLoading(true);
 
       const { data } = await axios.get(
-        `/api/message/${selectedChat._id}`,
+        `/api/message/${currentSelectedChat._id}`,
         config
       );
       setMessages(data);
       setLoading(false);
 
       if (socketRef.current) {
-        socketRef.current.emit("join chat", selectedChat._id);
+        socketRef.current.emit("join chat", currentSelectedChat._id);
       }
 
       await markMessagesAsRead();
@@ -144,7 +142,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         position: "bottom",
       });
     }
-  };
+  }, [markMessagesAsRead, toast]);
 
   const sendMessage = async (event) => {
     if (event.key === "Enter" && newMessage) {
@@ -199,13 +197,13 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       socket.off("stop typing");
       socket.disconnect();
     };
-    // eslint-disable-next-line
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    fetchMessages();
-    // eslint-disable-next-line
-  }, [selectedChat]);
+    if (selectedChat) {
+      fetchMessages();
+    }
+  }, [selectedChat, fetchMessages]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -221,17 +219,13 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         currentSelectedChat._id !== newMessageRecieved.chat._id
       ) {
         if (!currentNotification.find(n => n._id === newMessageRecieved._id)) {
-          if (setNotificationRef.current) {
-            setNotificationRef.current([newMessageRecieved, ...currentNotification]);
-          }
+          setNotification([newMessageRecieved, ...currentNotification]);
           if (setFetchAgainRef.current) {
             setFetchAgainRef.current((prev) => !prev);
           }
         }
       } else {
-        if (setMessagesRef.current) {
-          setMessagesRef.current([...currentMessages, newMessageRecieved]);
-        }
+        setMessages([...currentMessages, newMessageRecieved]);
         markMessagesAsRead();
       }
     };
@@ -249,7 +243,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       socket.off("message recieved", handleMessageReceived);
       socket.off("messages read", handleMessagesRead);
     };
-  }, [markMessagesAsRead]);
+  }, [markMessagesAsRead, setNotification]);
 
   const typingHandler = (e) => {
     setNewMessage(e.target.value);
@@ -349,7 +343,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 <div>
                   <Lottie
                     options={defaultOptions}
-                    // height={50}
                     width={70}
                     style={{ marginBottom: 15, marginLeft: 0 }}
                   />
@@ -368,7 +361,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           </Box>
         </>
       ) : (
-        // to get socket.io on same page
         <Box d="flex" alignItems="center" justifyContent="center" h="100%">
           <Text fontSize="3xl" pb={3} fontFamily="Work sans">
             Click on a user to start chatting
