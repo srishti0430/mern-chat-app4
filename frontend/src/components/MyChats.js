@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { getSender } from "../config/ChatLogics";
 import ChatLoading from "./ChatLoading";
 import GroupChatModal from "./miscellaneous/GroupChatModal";
-import { Button } from "@chakra-ui/react";
+import { Button, Badge, Flex } from "@chakra-ui/react";
 import { ChatState } from "../Context/ChatProvider";
 
 const MyChats = ({ fetchAgain }) => {
@@ -100,11 +100,23 @@ const MyChats = ({ fetchAgain }) => {
                 borderRadius="lg"
                 key={chat._id}
               >
-                <Text>
-                  {!chat.isGroupChat
-                    ? getSender(loggedUser, chat.users)
-                    : chat.chatName}
-                </Text>
+                <Flex justify="space-between" align="center">
+                  <Text>
+                    {!chat.isGroupChat
+                      ? getSender(loggedUser, chat.users)
+                      : chat.chatName}
+                  </Text>
+                  {chat.unreadCount > 0 && (
+                    <Badge
+                      colorScheme="red"
+                      borderRadius="full"
+                      px={2}
+                      fontSize="xs"
+                    >
+                      {chat.unreadCount}
+                    </Badge>
+                  )}
+                </Flex>
                 {chat.latestMessage && (
                   <Text fontSize="xs">
                     <b>{chat.latestMessage.sender.name} : </b>

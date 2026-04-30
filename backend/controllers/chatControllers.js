@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const Chat = require("../models/chatModel");
 const User = require("../models/userModel");
+const Message = require("../models/messageModel");
 
 //@description     Create or fetch One to One Chat
 //@route           POST /api/chat/
@@ -56,18 +57,33 @@ const accessChat = asyncHandler(async (req, res) => {
 //@access          Protected
 const fetchChats = asyncHandler(async (req, res) => {
   try {
-    Chat.find({ users: { $elemMatch: { $eq: req.user._id } } })
+    const chats = await Chat.find({ users: { $elemMatch: { $eq: req.user._id } } })
       .populate("users", "-password")
       .populate("groupAdmin", "-password")
       .populate("latestMessage")
-      .sort({ updatedAt: -1 })
-      .then(async (results) => {
-        results = await User.populate(results, {
-          path: "latestMessage.sender",
-          select: "name pic email",
+      .sort({ updatedAt: -1 });
+
+    const populatedChats = await User.populate(chats, {
+      path: "latestMessage.sender",
+      select: "name pic email",
+    });
+
+    const chatsWithUnreadCount = await Promise.all(
+      populatedChats.map(async (chat) => {
+        const unreadCount = await Message.countDocuments({
+          chat: chat._id,
+          sender: { $ne: req.user._id },
+          readBy: { $nin: [req.user._id] },
         });
-        res.status(200).send(results);
-      });
+
+        return {
+          ...chat.toObject(),
+          unreadCount,
+        };
+      })
+    );
+
+    res.status(200).send(chatsWithUnreadCount);
   } catch (error) {
     res.status(400);
     throw new Error(error.message);
